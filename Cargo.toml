@@ -1,13 +1,12 @@
 [package]
 name = "spr"
-version = "0.1.0"
+version = "0.0.1"
 edition = "2024"
 
 [dependencies]
 tracing = { version = "0.1", default-features = false, features = ["std", "attributes"] }
 tracing-subscriber = { version = "0.3", default-features = false, features = ["std", "fmt"] }
 yansi = { version = "1" }
-
 # chrono = { version = "0.4", default-features = false, features = ["std", "clock", "serde"] }
 
 libc = { version = "0.2" }
