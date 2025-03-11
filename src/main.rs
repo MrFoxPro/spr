@@ -130,8 +130,15 @@ async fn event_manager(mut rx: mpsc::Receiver<EvCommand>) {
 					});
 				}
 			}
-			EvCommand::RemoteMessage(msg) => {
-				tracing::debug!("receviced message {msg:?}");
+			EvCommand::RemoteMessage(Message { variant }) => {
+				tracing::debug!("receviced message {variant:?}");
+				match variant {
+					MessageVariant::ProcessExited(id) => {
+						let Some(task) = ctx.com.tasks.get(&id) else { continue };
+						task.send(task::TaskCommand::Restart).await;
+						continue
+					}
+				}
 			}
 		}
 	}

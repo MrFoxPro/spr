@@ -45,6 +45,10 @@ with lib; {
         pkg-config
         clang libclang libclang.lib libllvm lld
       ];
+
+      scripts."dev".exec = fromRoot ''
+        cargo run -- -c 'ping 1.1.1.1' t1 -cn 'ping 8.8.8.8 -c 6' t2 --notify-vsock 3:9000
+      '';
     };
   };
 }
