@@ -1,0 +1,18 @@
+[package]
+name = "spr"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tracing = { version = "0.1", default-features = false, features = ["std", "attributes"] }
+tracing-subscriber = { version = "0.3", default-features = false, features = ["std", "fmt"] }
+yansi = { version = "1" }
+
+# chrono = { version = "0.4", default-features = false, features = ["std", "clock", "serde"] }
+
+libc = { version = "0.2" }
+tokio = { version = "1", default-features = false, features = ["tracing", "rt-multi-thread", "time", "signal", "process", "io-util", "macros"] }
+tokio-vsock = { version = "0.7" }
+bincode = { version = "2", default-features = false, features = ["std", "alloc", "derive"] }
+# nu-ansi-term = { version = "0.50" }
+# color-print = { version = "0.3" }
