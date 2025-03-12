@@ -43,7 +43,7 @@ pub async fn task_manager(config: TaskConfig, mut rx: mpsc::Receiver<TaskCommand
 		match cmd {
 			TaskCommand::Restart => {
 				controller.restart().await;
-				tracing::info!("{}", format!("task {} started", config.id).paint(style::NB));
+				tracing::info!("{}", format!("{} started", config.id).paint(style::NB));
 				start_waiter();
 			}
 			TaskCommand::RestartWith { on_stop, on_start } => {
@@ -51,7 +51,7 @@ pub async fn task_manager(config: TaskConfig, mut rx: mpsc::Receiver<TaskCommand
 				on_stop.map(|c| c.send(()));
 
 				controller.restart().await;
-				tracing::info!("{}", format!("task {} started", config.id).paint(style::NB));
+				tracing::info!("{}", format!("{} started", config.id).paint(style::NB));
 
 				start_waiter();
 				on_start.map(|c| c.send(()));
@@ -98,15 +98,16 @@ impl ProcessController {
 		let Some(ref mut process) = self.process else { return };
 		let Some(id) = process.id() else { return tracing::error!("failed to get process id") };
 
-		unsafe { libc::kill(id as _, libc::SIGTERM) };
+		unsafe { libc::kill(id as _, libc::SIGINT) };
 		match tokio::time::timeout(Duration::from_millis(3000), process.wait()).await {
 			Ok(Ok(status)) => return tracing::debug!("{}", format!("{status}").paint(style::INFO)),
 			_ => tracing::warn!("{}", "failed to stop in 3000ms, will use `kill -s SIGINTT`".on_red()),
 		}
-
-		Command::new("kill").arg("-s").arg("SIGINT").arg(id.to_string())
+		let mut kill_task = Command::new("kill").arg("-9").arg(id.to_string())
 			.stdout(std::io::stdout()).stderr(std::io::stderr())
-			.spawn().inspect_err(|err| tracing::error!("{}", "failed to `kill -s SIGINT`\n{err}".on_red()));
+			.spawn().inspect_err(|err| tracing::error!("{}", "failed to `kill -9`\n{err}".on_red())).unwrap();
+
+		kill_task.wait().await;
 	}
 	pub async fn exit_status(&mut self) -> Option<ExitStatus> {
 		let Some(ref mut process) = self.process else { return None };

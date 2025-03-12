@@ -25,16 +25,17 @@ pub fn context() -> &'static Context {
 	unreachable!()
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct TaskConfig {
 	id: String,
+	alias: String,
 	cmd: String,
 	no_start: bool,
 }
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug)]
 struct Config {
-	notify_vsock: Option<(String, String)>,
-	listen_vsock: bool,
+	notify_vsock: Option<(u32, u32)>,
+	listen_vsock: Option<u32>,
 	tasks: Vec<TaskConfig>,
 }
 
@@ -50,6 +51,8 @@ async fn start_app() {
 	obs::configure_tracing();
 	let config = cli::parse().unwrap();
 
+	tracing::debug!("{config:#?}");
+
 	let (mut com_bundle, com) = com::Com::init(&config.tasks);
 	CONTEXT.set(Context {
 		com,
@@ -60,8 +63,8 @@ async fn start_app() {
 	let mut child_tasks = JoinSet::new();
 	general_tasks.spawn(event_manager(com_bundle.ev_rx));
 
-	if context().cfg.listen_vsock {
-		general_tasks.spawn(vsock::listen_vsock());
+	if let Some(port) = context().cfg.listen_vsock {
+		general_tasks.spawn(vsock::listen_vsock(port));
 	}
 
 	for task_config in context().cfg.tasks.clone().into_iter() {
@@ -121,10 +124,10 @@ async fn event_manager(mut rx: mpsc::Receiver<EvCommand>) {
 			}
 			EvCommand::ProcessExited(id) => {
 				tracing::error!("{}", format!("{id} exited").paint(style::INFO));
-				if let Some(ref notify_path) = context().cfg.notify_vsock {
+				if let Some((cid, port)) = context().cfg.notify_vsock {
 					tokio::spawn(async move {
 						use tokio_vsock::{VsockStream, VsockAddr};
-						let Ok(mut vsock) = VsockStream::connect(VsockAddr::new(3, 9000)).await else { return };
+						let Ok(mut vsock) = VsockStream::connect(VsockAddr::new(cid, port)).await else { return };
 						let msg = Message { variant: MessageVariant::ProcessExited(id) };
 						bincode::encode_into_std_write(msg, &mut vsock, bincode::config::standard()).unwrap();
 					});
@@ -134,8 +137,11 @@ async fn event_manager(mut rx: mpsc::Receiver<EvCommand>) {
 				tracing::debug!("receviced message {variant:?}");
 				match variant {
 					MessageVariant::ProcessExited(id) => {
-						let Some(task) = ctx.com.tasks.get(&id) else { continue };
-						task.send(task::TaskCommand::Restart).await;
+						// let Some(task) = ctx.com.tasks.get(&id) else { continue };
+						// task.send(task::TaskCommand::Restart).await;
+						for task in ctx.com.tasks.values() {
+							task.send(task::TaskCommand::Restart).await;
+						}
 						continue
 					}
 				}

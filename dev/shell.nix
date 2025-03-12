@@ -3,8 +3,8 @@ with builtins;
 with lib; {
   imports = [./vm.nix];
   perSystem = {system, self', inputs', pkgs, config, lib, commonDevshellModule, ... } @ systemArgs: {
-    devenv.shells.default = {fromRoot, ...} @ devenvArgs: let
-      shell = config.devenv.shells.default;
+    devenv.shells.default = {config, fromRoot, ...} @ devenvArgs: let
+      shell = config;
       inherit (shell) devenv;
       inherit (devenv) root state profile;
     in {
@@ -18,7 +18,6 @@ with lib; {
         "TARGET_CC" = "clang-cl";
         "TARGET_CXX" = TARGET_CC;
         "TARGET_AR" = "llvm-lib";
-
         "LD_LIBRARY_PATH" = with pkgs; makeLibraryPath [clang libclang libclang.lib libllvm lld];
       };
 
@@ -38,6 +37,7 @@ with lib; {
           concatStrings
         ];
       in ''
+        echo ${root}
         echo "$(tput setaf 105)🖥 Simple Process Runner$(tput sgr0)"
         echo "${commands}" | ${pkgs.unixtools.column}/bin/column --table -W 1 -T 1 -t -s "|"
       '';
@@ -45,7 +45,6 @@ with lib; {
         pkg-config
         clang libclang libclang.lib libllvm lld
       ];
-
       scripts."dev".exec = fromRoot ''
         cargo run -- -c 'ping 1.1.1.1' t1 -cn 'ping 8.8.8.8 -c 6' t2 --notify-vsock 3:9000
       '';

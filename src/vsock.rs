@@ -6,8 +6,8 @@ use crate::{common::AppResult, context, EvCommand, Message};
 const VSOCK_BLOCK_SIZE: usize = 2048;
 
 #[tracing::instrument]
-pub async fn listen_vsock() {
-	let listener = VsockListener::bind(VsockAddr::new(libc::VMADDR_CID_ANY, 9000)).unwrap();
+pub async fn listen_vsock(port: u32) {
+	let listener = VsockListener::bind(VsockAddr::new(libc::VMADDR_CID_ANY, port)).unwrap();
 	// cprintln!("<#6ec207><bold>listening VSOCK on {}", listener.local_addr().unwrap());
 	tracing::info!("listening VSOCK on {}", listener.local_addr().unwrap());
 	loop {

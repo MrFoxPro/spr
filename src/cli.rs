@@ -7,66 +7,37 @@ const ARG_LISTEN_VSOCK: &str = "--listen-vsock";
 
 pub fn parse() -> AppResult<Config> {
 	let mut cfg = Config::default();
-	let args: Vec<String> = std::env::args().skip(2).map(|arg| arg.trim().to_owned()).collect();
+	let args: Vec<String> = std::env::args().skip(1).map(|arg| arg.trim().to_owned()).collect();
 
 	let len = args.len();
 	if len == 0 { return Err("commands weren't specified".into()) }
 
 	let last = len - 1;
 
-	enum State {
-		None,
-		Task { cmd: Option<String>, alias: Option<String>, no_start: bool },
-		NotifyVsock,
-		ListenVSock,
-	}
-	let mut state = State::Task { cmd: None, alias: None, no_start: false };
+	fn is_arg(s: &String) -> bool { [ARG_C, ARG_CN, ARG_NOTIFY_VSOCK, ARG_LISTEN_VSOCK].contains(&s.as_ref()) }
+	fn is_word(s: &String) -> bool { !is_arg(s) }
 
-	fn is_arg(s: impl AsRef<str>) -> bool {
-		[ARG_C, ARG_CN, ARG_NOTIFY_VSOCK, ARG_LISTEN_VSOCK].contains(&s.as_ref())
-	}
-
-	for (idx, word) in args.iter().enumerate() {
-		let is_word = !is_arg(&word);
-		let is_last = idx == last;
-
-		match &mut state {
-			State::Task { cmd, alias, no_start } => {
-				if is_word {
-					if cmd.is_none() { *cmd = word.to_owned().into(); }
-					else { *alias = word.to_owned().into(); }
-					continue
-				}
-				let Some(cmd) = cmd else { return Err("command was not specified before {idx} index".into()) };
-				cfg.tasks.push(TaskConfig { cmd: cmd.clone(), id: alias.clone().unwrap_or_else(|| cmd.clone()), no_start: *no_start });
-			}
-			State::NotifyVsock => {
-				if is_word {
-					let Some(path) = word.split_once(":").map(|(a, b)| (a.to_owned(), b.to_owned()))
-					else { return Err("--notify-vsock should be in cid:port format (e.g. 3:9000)".into()) };
-					cfg.notify_vsock = path.into();
-					continue
-				}
-			}
-			State::ListenVSock => {
-			}
-			State::None => {}
-		}
-
-		if !is_arg(word) && idx != last { return Err(format!("unexepcted argument at {idx} index: {word}").into()) }
-
+	let mut iter = args.into_iter().peekable();
+	while let Some(word) = iter.next() {
 		match word.as_str() {
 			ARG_C | ARG_CN => {
-				state = State::Task { cmd: None, alias: None, no_start: word == "-cn" };
+				let cmd   = iter.next_if(is_word).expect("cmd was expected");
+				let alias = iter.next_if(is_word).expect("alias expected");
+				let id    = iter.next_if(is_word);
+				cfg.tasks.push(TaskConfig { cmd, alias: alias.clone(), id: id.unwrap_or(alias), no_start: word == ARG_CN });
 			}
 			ARG_NOTIFY_VSOCK => {
-				state = State::NotifyVsock;
+				let Some(word) = iter.next_if(is_word) else { panic!("expected cid:port for {word}") };
+				let Some((Some(port), Some(cid))) = word.split_once(":").map(|(a, b)| (a.parse::<u32>().ok(), b.parse::<u32>().ok()))
+				else { panic!("{word} parameter should be in cid:port format (e.g. 3:9000)") };
+				cfg.notify_vsock = Some((port, cid));
 			}
 			ARG_LISTEN_VSOCK => {
-				state = State::ListenVSock;
-				cfg.listen_vsock = true;
+				let Some(word) = iter.next_if(is_word) else { panic!("expected port for {word}") };
+				let Some(port) = word.parse::<u32>().ok() else { panic!("port should be u32 number") };
+				cfg.listen_vsock = Some(port);
 			}
-			_ => {}
+			_ => panic!("unknown word {word}")
 		}
 	}
 	return Ok(cfg)
